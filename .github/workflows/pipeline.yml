@@ -42,6 +42,12 @@ jobs:
       - name: Install dependencies
         run: pip install -r pipeline/requirements.txt
 
+      - name: Create data directories
+        run: |
+          mkdir -p pipeline/data
+          mkdir -p frontend/public/data/team
+          mkdir -p frontend/public/data/event
+
       - name: Run pipeline
         env:
           FTC_API_USER: ${{ secrets.FTC_API_USER }}
@@ -50,14 +56,13 @@ jobs:
           DB_PATH: ${{ github.workspace }}/pipeline/data/ftc.db
           EXPORT_PATH: ${{ github.workspace }}/frontend/public/data
         run: |
-          mkdir -p "${{ github.workspace }}/pipeline/data"
-          mkdir -p "${{ github.workspace }}/frontend/public/data/team"
-          mkdir -p "${{ github.workspace }}/frontend/public/data/event"
-          cd pipeline
-          if [ -n "${{ github.event.inputs.event_code }}" ]; then
-            python run.py --event "${{ github.event.inputs.event_code }}"
+          echo "DB_PATH=$DB_PATH"
+          echo "EXPORT_PATH=$EXPORT_PATH"
+          EVENT_ARG="${{ github.event.inputs.event_code }}"
+          if [ -n "$EVENT_ARG" ]; then
+            python pipeline/run.py --event "$EVENT_ARG"
           else
-            python run.py
+            python pipeline/run.py
           fi
 
       - name: Build Next.js site
