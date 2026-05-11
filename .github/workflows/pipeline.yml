@@ -47,8 +47,8 @@ jobs:
           FTC_API_USER: ${{ secrets.FTC_API_USER }}
           FTC_API_KEY: ${{ secrets.FTC_API_KEY }}
           TOA_API_KEY: ${{ secrets.TOA_API_KEY }}
-          DB_PATH: pipeline/data/ftc.db
-          EXPORT_PATH: frontend/public/data
+          DB_PATH: ${{ github.workspace }}/pipeline/data/ftc.db
+          EXPORT_PATH: ${{ github.workspace }}/frontend/public/data
         run: |
           cd pipeline
           if [ -n "${{ github.event.inputs.event_code }}" ]; then
