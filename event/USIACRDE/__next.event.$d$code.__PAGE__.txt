@@ -1,0 +1,6 @@
+1:"$Sreact.fragment"
+2:I[744457,["/_next/static/chunks/16_6vf~2cwgch.js","/_next/static/chunks/0i.l9589uvx0j.js","/_next/static/chunks/0dlwar4qd8s-q.js","/_next/static/chunks/12zrjvi2n0qfy.js","/_next/static/chunks/1533vj_5_1lci.js"],"EventClient"]
+3:I[897367,["/_next/static/chunks/16_6vf~2cwgch.js","/_next/static/chunks/0i.l9589uvx0j.js"],"OutletBoundary"]
+4:"$Sreact.suspense"
+0:{"rsc":["$","$1","c",{"children":[["$","$L2",null,{"data":{"event":{"event_code":"USIACRDE","name":"Build Today = Innovate Tomorrow Cedar Rapids, Iowa","type":"Demo / Exhibition","start_date":"2026-03-02T00:00:00","end_date":"2026-03-02T00:00:00","city":"Cedar Rapids","state_prov":"IA","country":"USA"},"matches":[],"team_epas":[]}}],[["$","script","script-0",{"src":"/_next/static/chunks/0dlwar4qd8s-q.js","async":true}],["$","script","script-1",{"src":"/_next/static/chunks/12zrjvi2n0qfy.js","async":true}],["$","script","script-2",{"src":"/_next/static/chunks/1533vj_5_1lci.js","async":true}]],["$","$L3",null,{"children":["$","$4",null,{"name":"Next.MetadataOutlet","children":"$@5"}]}]]}],"isPartial":false,"staleTime":300,"varyParams":null,"buildId":"fvElbNNecdWsB0_jRvBOP"}
+5:null
