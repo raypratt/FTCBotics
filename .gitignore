@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# SQLite DB (rebuilt by pipeline; don't commit)
+pipeline/data/*.db
+
+# Generated static data (rebuilt by pipeline — but commit empty placeholders)
+frontend/public/data/team/
+frontend/public/data/event/
+
+# Next.js
+frontend/.next/
+frontend/out/
+frontend/node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env
+.env.local

@@ -1,0 +1,71 @@
+name: Data Pipeline
+
+on:
+  schedule:
+    # Every 30 minutes during competition hours (8am-10pm ET = 13:00-03:00 UTC)
+    - cron: "*/30 13-23 * * *"
+    - cron: "*/30 0-3 * * *"
+    # Hourly otherwise
+    - cron: "0 4-12 * * *"
+  workflow_dispatch:
+    inputs:
+      event_code:
+        description: "Single event code to ingest (leave blank for full refresh)"
+        required: false
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # Restore the SQLite DB from cache so we do incremental updates
+      - name: Restore DB cache
+        uses: actions/cache@v4
+        with:
+          path: pipeline/data/ftc.db
+          key: ftc-db-${{ github.run_id }}
+          restore-keys: |
+            ftc-db-
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: pipeline/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r pipeline/requirements.txt
+
+      - name: Run pipeline
+        env:
+          FTC_API_USER: ${{ secrets.FTC_API_USER }}
+          FTC_API_KEY: ${{ secrets.FTC_API_KEY }}
+          TOA_API_KEY: ${{ secrets.TOA_API_KEY }}
+          DB_PATH: pipeline/data/ftc.db
+          EXPORT_PATH: frontend/public/data
+        run: |
+          cd pipeline
+          if [ -n "${{ github.event.inputs.event_code }}" ]; then
+            python run.py --event "${{ github.event.inputs.event_code }}"
+          else
+            python run.py
+          fi
+
+      - name: Build Next.js site
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: frontend/out
+          keep_files: false
