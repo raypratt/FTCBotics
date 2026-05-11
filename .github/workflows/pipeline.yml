@@ -50,6 +50,9 @@ jobs:
           DB_PATH: ${{ github.workspace }}/pipeline/data/ftc.db
           EXPORT_PATH: ${{ github.workspace }}/frontend/public/data
         run: |
+          mkdir -p "${{ github.workspace }}/pipeline/data"
+          mkdir -p "${{ github.workspace }}/frontend/public/data/team"
+          mkdir -p "${{ github.workspace }}/frontend/public/data/event"
           cd pipeline
           if [ -n "${{ github.event.inputs.event_code }}" ]; then
             python run.py --event "${{ github.event.inputs.event_code }}"
