@@ -2,13 +2,14 @@
 Main ingestion pipeline.
 
 Run modes:
-  python ingest.py              -- full refresh (all events)
+  python ingest.py              -- smart incremental (active events only)
   python ingest.py --event CODE -- single event refresh
+  python ingest.py --full       -- force full refresh of all events
 """
 
 import argparse
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from database import (
     init_db, transaction, get_conn,
@@ -21,8 +22,41 @@ from ftc_api import (
 )
 from epa import EPACalculator
 
+# How many days before/after event end date to keep re-fetching
+_ACTIVE_WINDOW_DAYS = 3
 
-def ingest_teams(client: FTCApiClient):
+
+def _today() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+def _is_active(event: dict) -> bool:
+    """True if the event is ongoing or ended within the active window."""
+    today = _today()
+    start = (event.get("start_date") or "")[:10]
+    end = (event.get("end_date") or start)[:10]
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=_ACTIVE_WINDOW_DAYS)).strftime("%Y-%m-%d")
+    return start <= today and end >= cutoff
+
+
+def _needs_refresh(event_code: str, conn) -> bool:
+    """True if this event has no matches stored yet."""
+    row = conn.execute(
+        "SELECT COUNT(*) as n FROM matches WHERE event_code=?", (event_code,)
+    ).fetchone()
+    return row["n"] == 0
+
+
+def ingest_teams(client: FTCApiClient, force: bool = False):
+    """Fetch teams at most once per day unless forced."""
+    conn = get_conn()
+    count = conn.execute("SELECT COUNT(*) as n FROM teams").fetchone()["n"]
+    conn.close()
+
+    if count > 0 and not force:
+        print(f"Teams: {count} cached, skipping fetch.")
+        return
+
     print("Fetching teams...")
     raw_teams = client.get_all_teams()
     with transaction() as conn:
@@ -31,16 +65,15 @@ def ingest_teams(client: FTCApiClient):
     print(f"  {len(raw_teams)} teams stored.")
 
 
-def ingest_events(client: FTCApiClient) -> list[str]:
-    print("Fetching events...")
+def ingest_events(client: FTCApiClient) -> list[dict]:
+    """Fetch the event list. Returns raw event dicts."""
+    print("Fetching event list...")
     raw_events = client.get_events()
-    codes = []
     with transaction() as conn:
         for raw in raw_events:
             upsert_event(conn, normalize_event(raw))
-            codes.append(raw["code"])
-    print(f"  {len(codes)} events stored.")
-    return codes
+    print(f"  {len(raw_events)} events stored.")
+    return raw_events
 
 
 def ingest_event_matches(client: FTCApiClient, event_code: str):
@@ -52,13 +85,8 @@ def ingest_event_matches(client: FTCApiClient, event_code: str):
             norm = normalize_match(raw, event_code)
             if norm is None:
                 continue
-            match_id = upsert_match(conn, norm)
+            upsert_match(conn, norm)
 
-            # fetch detailed scores for this match level
-            level_str = "playoff" if norm["tournament_level"] != "QUALIFICATION" else "qual"
-            # scores are fetched per-event below; we'll store what we get
-
-    # Fetch qual and playoff scores separately (one API call each)
     for level in ("qual", "playoff"):
         try:
             raw_scores = client.get_scores(event_code, level)
@@ -68,7 +96,6 @@ def ingest_event_matches(client: FTCApiClient, event_code: str):
 
         with transaction() as conn:
             for ms in raw_scores:
-                # Resolve match_id
                 level_name = "QUALIFICATION" if level == "qual" else "PLAYOFF"
                 row = conn.execute("""
                     SELECT id FROM matches
@@ -77,10 +104,8 @@ def ingest_event_matches(client: FTCApiClient, event_code: str):
                 if row is None:
                     continue
                 match_id = row["id"]
-
                 for alliance_data in ms.get("alliances", []):
-                    alliance = alliance_data["alliance"]  # "Red" or "Blue"
-                    norm_score = normalize_score(alliance_data, match_id, alliance)
+                    norm_score = normalize_score(alliance_data, match_id, alliance_data["alliance"])
                     upsert_match_score(conn, norm_score)
 
 
@@ -88,11 +113,9 @@ def recalculate_epa():
     """Recompute EPA for all unprocessed matches, ordered by start time."""
     print("Calculating EPA...")
 
-    # Load current season state so incremental updates work
     calc = EPACalculator()
     conn = get_conn()
 
-    # Seed calculator from existing team_season rows
     existing = conn.execute("SELECT * FROM team_season").fetchall()
     for row in existing:
         from epa import TeamEPA
@@ -125,9 +148,7 @@ def recalculate_epa():
         for match in unprocessed:
             is_elim = match["tournament_level"] != "QUALIFICATION"
             scores = get_match_scores(conn, match["id"])
-            dq_teams = set()  # TODO: parse DQ flags from match data if needed
-
-            history_rows = calc.process_match(match, scores, is_elim, dq_teams)
+            history_rows = calc.process_match(match, scores, is_elim, set())
             if not history_rows:
                 continue
 
@@ -142,10 +163,8 @@ def recalculate_epa():
                          :total_epa, :auto_epa, :teleop_epa, :endgame_epa,
                          :movement_rp, :goal_rp, :pattern_rp, :qual_n)
                 """, row)
-
             processed += 1
 
-        # Write final season ratings
         now = datetime.now(timezone.utc).isoformat()
         for row in calc.get_season_rows(now):
             conn.execute("""
@@ -176,21 +195,38 @@ def recalculate_epa():
     print(f"  EPA updated for {processed} matches, {len(calc.teams)} teams.")
 
 
-def run(event_filter: str | None = None):
+def run(event_filter: str | None = None, full: bool = False):
     init_db()
     client = FTCApiClient()
 
-    ingest_teams(client)
-    event_codes = ingest_events(client)
+    ingest_teams(client, force=full)
+    raw_events = ingest_events(client)
 
     if event_filter:
-        event_codes = [c for c in event_codes if c == event_filter]
-        if not event_codes:
+        # Single-event mode: fetch regardless of active window
+        targets = [e for e in raw_events if e["code"] == event_filter]
+        if not targets:
             print(f"Event '{event_filter}' not found.")
             sys.exit(1)
-
-    for code in event_codes:
-        ingest_event_matches(client, code)
+        for e in targets:
+            ingest_event_matches(client, e["code"])
+    elif full:
+        # Full refresh: fetch every event
+        print(f"Full refresh: fetching all {len(raw_events)} events...")
+        for e in raw_events:
+            ingest_event_matches(client, e["code"])
+    else:
+        # Smart incremental: only active events or ones with no data yet
+        conn = get_conn()
+        targets = [
+            e for e in raw_events
+            if _is_active(e) or _needs_refresh(e["code"], conn)
+        ]
+        conn.close()
+        print(f"Incremental: {len(targets)} events to fetch "
+              f"({len(raw_events) - len(targets)} skipped as historical).")
+        for e in targets:
+            ingest_event_matches(client, e["code"])
 
     recalculate_epa()
     print("Done.")
@@ -199,5 +235,6 @@ def run(event_filter: str | None = None):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--event", help="Ingest a single event by code")
+    parser.add_argument("--full", action="store_true", help="Force full refresh of all events")
     args = parser.parse_args()
-    run(event_filter=args.event)
+    run(event_filter=args.event, full=args.full)
