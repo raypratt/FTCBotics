@@ -1,6 +1,6 @@
 import type { TeamSummary, TeamDetail, EventSummary, EventDetail, Meta } from "./types";
 
-const BASE = process.env.NEXT_PUBLIC_DATA_BASE ?? "/data";
+const BASE = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/data`;
 
 async function fetchJSON<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`);
