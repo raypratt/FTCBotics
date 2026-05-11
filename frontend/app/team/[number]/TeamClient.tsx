@@ -49,7 +49,7 @@ export function TeamClient({ team }: { team: TeamDetail }) {
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: "EPA", value: team.total_epa, color: "text-white" },
+          { label: "EPA", value: team.total_epa, color: "text-foreground" },
           { label: "Auto EPA", value: team.auto_epa, color: "text-green-400" },
           { label: "Teleop EPA", value: team.teleop_epa, color: "text-blue-400" },
           { label: "Endgame EPA", value: team.endgame_epa, color: "text-purple-400" },
