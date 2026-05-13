@@ -42,6 +42,7 @@ def export_all():
             t.city,
             t.state_prov,
             t.country,
+            t.home_region,
             ts.total_epa,
             ts.auto_epa,
             ts.teleop_epa,

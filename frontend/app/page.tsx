@@ -64,6 +64,7 @@ export default function Home() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [filterCountry, setFilterCountry] = useState("");
   const [filterState, setFilterState] = useState("");
+  const [filterRegion, setFilterRegion] = useState("");
 
   useEffect(() => {
     getTeams().then(setTeams).catch(console.error);
@@ -82,9 +83,15 @@ export default function Home() {
     return [...new Set(pool.map((t) => t.state_prov).filter(Boolean))].sort();
   }, [teams, filterCountry]);
 
+  const regions = useMemo(
+    () => [...new Set(teams.map((t) => t.home_region).filter(Boolean))].sort() as string[],
+    [teams]
+  );
+
   function handleCountryChange(v: string) {
     setFilterCountry(v);
-    setFilterState(""); // reset state when country changes
+    setFilterState("");
+    setFilterRegion("");
   }
 
   // ── search dropdown ────────────────────────────────────────────────────────
@@ -182,7 +189,8 @@ export default function Home() {
           t.city?.toLowerCase().includes(q) ||
           t.state_prov?.toLowerCase().includes(q)) &&
         (!filterCountry || t.country === filterCountry) &&
-        (!filterState || t.state_prov === filterState)
+        (!filterState || t.state_prov === filterState) &&
+        (!filterRegion || t.home_region === filterRegion)
     );
   }, [teams, search, filterCountry, filterState]);
 
@@ -225,7 +233,7 @@ export default function Home() {
   const teamResults = results.filter((r) => r.kind === "team");
   const eventResults = results.filter((r) => r.kind === "event");
 
-  const activeFilters = [filterCountry, filterState].filter(Boolean).length;
+  const activeFilters = [filterCountry, filterState, filterRegion].filter(Boolean).length;
 
   return (
     <div className="space-y-6">
@@ -338,9 +346,15 @@ export default function Home() {
           options={states}
           placeholder="All States / Provinces"
         />
+        <FilterSelect
+          value={filterRegion}
+          onChange={setFilterRegion}
+          options={regions}
+          placeholder="All Regions"
+        />
         {activeFilters > 0 && (
           <button
-            onClick={() => { setFilterCountry(""); setFilterState(""); }}
+            onClick={() => { setFilterCountry(""); setFilterState(""); setFilterRegion(""); }}
             className="text-xs text-blue-400 hover:underline ml-1"
           >
             Clear filters

@@ -67,6 +67,7 @@ def normalize_team(raw: dict) -> dict:
         "state_prov": raw.get("stateProv", ""),
         "country": raw.get("country", ""),
         "rookie_year": raw.get("rookieYear"),
+        "home_region": raw.get("homeRegion"),
     }
 
 

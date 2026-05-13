@@ -4,6 +4,7 @@ export interface TeamSummary {
   city: string;
   state_prov: string;
   country: string;
+  home_region: string | null;
   total_epa: number;
   auto_epa: number;
   teleop_epa: number;
