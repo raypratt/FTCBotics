@@ -24,6 +24,31 @@ type SearchResult =
   | { kind: "team"; href: string; primary: string; secondary: string }
   | { kind: "event"; href: string; primary: string; secondary: string; badge: string };
 
+function FilterSelect({
+  value,
+  onChange,
+  options,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+  placeholder: string;
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="border border-border rounded-md px-2 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-blue-500 text-foreground"
+    >
+      <option value="">{placeholder}</option>
+      {options.map((o) => (
+        <option key={o} value={o}>{o}</option>
+      ))}
+    </select>
+  );
+}
+
 export default function Home() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -37,6 +62,8 @@ export default function Home() {
   const [activeIdx, setActiveIdx] = useState(-1);
   const [sortKey, setSortKey] = useState<SortKey>("rank");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [filterCountry, setFilterCountry] = useState("");
+  const [filterState, setFilterState] = useState("");
 
   useEffect(() => {
     getTeams().then(setTeams).catch(console.error);
@@ -44,6 +71,23 @@ export default function Home() {
     getEvents().then(setEvents).catch(console.error);
   }, []);
 
+  // ── filter option lists ────────────────────────────────────────────────────
+  const countries = useMemo(
+    () => [...new Set(teams.map((t) => t.country).filter(Boolean))].sort(),
+    [teams]
+  );
+
+  const states = useMemo(() => {
+    const pool = filterCountry ? teams.filter((t) => t.country === filterCountry) : teams;
+    return [...new Set(pool.map((t) => t.state_prov).filter(Boolean))].sort();
+  }, [teams, filterCountry]);
+
+  function handleCountryChange(v: string) {
+    setFilterCountry(v);
+    setFilterState(""); // reset state when country changes
+  }
+
+  // ── search dropdown ────────────────────────────────────────────────────────
   const results: SearchResult[] = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return [];
@@ -114,7 +158,6 @@ export default function Home() {
     }
   }
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     function onPointerDown(e: PointerEvent) {
       if (
@@ -128,17 +171,20 @@ export default function Home() {
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, []);
 
+  // ── table filtering ────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return teams.filter(
       (t) =>
-        !q ||
-        String(t.team_number).includes(q) ||
-        t.name?.toLowerCase().includes(q) ||
-        t.city?.toLowerCase().includes(q) ||
-        t.state_prov?.toLowerCase().includes(q)
+        (!q ||
+          String(t.team_number).includes(q) ||
+          t.name?.toLowerCase().includes(q) ||
+          t.city?.toLowerCase().includes(q) ||
+          t.state_prov?.toLowerCase().includes(q)) &&
+        (!filterCountry || t.country === filterCountry) &&
+        (!filterState || t.state_prov === filterState)
     );
-  }, [teams, search]);
+  }, [teams, search, filterCountry, filterState]);
 
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) => {
@@ -179,9 +225,12 @@ export default function Home() {
   const teamResults = results.filter((r) => r.kind === "team");
   const eventResults = results.filter((r) => r.kind === "event");
 
+  const activeFilters = [filterCountry, filterState].filter(Boolean).length;
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
+      {/* ── header row ── */}
+      <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-bold">2025–26 Team Rankings</h1>
           {updatedAt && (
@@ -189,7 +238,7 @@ export default function Home() {
           )}
         </div>
 
-        {/* Search box with dropdown */}
+        {/* Search box */}
         <div className="relative w-72">
           <input
             ref={inputRef}
@@ -215,7 +264,7 @@ export default function Home() {
                   <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground bg-muted/40">
                     Teams
                   </p>
-                  {teamResults.map((r, localIdx) => {
+                  {teamResults.map((r) => {
                     const globalIdx = results.indexOf(r);
                     return (
                       <button
@@ -224,10 +273,7 @@ export default function Home() {
                           globalIdx === activeIdx ? "bg-muted/70" : ""
                         }`}
                         onPointerEnter={() => setActiveIdx(globalIdx)}
-                        onPointerDown={(e) => {
-                          e.preventDefault();
-                          navigate(globalIdx);
-                        }}
+                        onPointerDown={(e) => { e.preventDefault(); navigate(globalIdx); }}
                       >
                         <p className="font-medium truncate">{r.primary}</p>
                         {r.secondary && (
@@ -238,7 +284,6 @@ export default function Home() {
                   })}
                 </>
               )}
-
               {eventResults.length > 0 && (
                 <>
                   <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground bg-muted/40">
@@ -253,10 +298,7 @@ export default function Home() {
                           globalIdx === activeIdx ? "bg-muted/70" : ""
                         }`}
                         onPointerEnter={() => setActiveIdx(globalIdx)}
-                        onPointerDown={(e) => {
-                          e.preventDefault();
-                          navigate(globalIdx);
-                        }}
+                        onPointerDown={(e) => { e.preventDefault(); navigate(globalIdx); }}
                       >
                         <div className="flex items-center gap-2">
                           <p className="font-medium truncate flex-1">{r.primary}</p>
@@ -279,9 +321,42 @@ export default function Home() {
         </div>
       </div>
 
+      {/* ── filter row ── */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+          Filter:
+        </span>
+        <FilterSelect
+          value={filterCountry}
+          onChange={handleCountryChange}
+          options={countries}
+          placeholder="All Countries"
+        />
+        <FilterSelect
+          value={filterState}
+          onChange={setFilterState}
+          options={states}
+          placeholder="All States / Provinces"
+        />
+        {activeFilters > 0 && (
+          <button
+            onClick={() => { setFilterCountry(""); setFilterState(""); }}
+            className="text-xs text-blue-400 hover:underline ml-1"
+          >
+            Clear filters
+          </button>
+        )}
+        {(filterCountry || filterState || search) && (
+          <span className="text-xs text-muted-foreground ml-auto">
+            {filtered.length} of {teams.length} teams
+          </span>
+        )}
+      </div>
+
+      {/* ── stat cards ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {EPA_COLS.map(({ key, label }) => {
-          const vals = teams.map((t) => t[key]).filter((v) => v > 0);
+          const vals = filtered.map((t) => t[key]).filter((v) => v > 0);
           const avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
           const max = vals.length ? Math.max(...vals) : 0;
           return (
@@ -300,6 +375,7 @@ export default function Home() {
         })}
       </div>
 
+      {/* ── rankings table ── */}
       <div className="rounded-md border border-border overflow-hidden">
         <Table>
           <TableHeader>
@@ -318,7 +394,7 @@ export default function Home() {
             {sorted.length === 0 && (
               <TableRow>
                 <TableCell colSpan={8} className="text-center text-muted-foreground py-12">
-                  {teams.length === 0 ? "Loading..." : "No teams match your search."}
+                  {teams.length === 0 ? "Loading..." : "No teams match your filters."}
                 </TableCell>
               </TableRow>
             )}
