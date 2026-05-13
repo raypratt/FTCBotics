@@ -209,7 +209,7 @@ export default function Home() {
         (!filterRegion || t.home_region === filterRegion) &&
         (!filterLeague || t.league_name === filterLeague)
     );
-  }, [teams, search, filterCountry, filterState]);
+  }, [teams, search, filterCountry, filterState, filterRegion, filterLeague]);
 
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) => {
