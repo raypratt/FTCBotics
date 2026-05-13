@@ -14,7 +14,7 @@ from datetime import datetime, timezone, timedelta
 from database import (
     init_db, transaction, get_conn,
     upsert_team, upsert_event, upsert_match, upsert_match_score,
-    get_unprocessed_matches, get_match_scores,
+    update_team_league, get_unprocessed_matches, get_match_scores,
 )
 from ftc_api import (
     FTCApiClient,
@@ -74,6 +74,40 @@ def ingest_events(client: FTCApiClient) -> list[dict]:
             upsert_event(conn, normalize_event(raw))
     print(f"  {len(raw_events)} events stored.")
     return raw_events
+
+
+def ingest_leagues(client: FTCApiClient, force: bool = False):
+    """Fetch all leagues and assign each team its league. Skips if already populated."""
+    conn = get_conn()
+    null_count = conn.execute(
+        "SELECT COUNT(*) as n FROM teams WHERE league_code IS NULL"
+    ).fetchone()["n"]
+    conn.close()
+
+    if null_count == 0 and not force:
+        print("Leagues: all teams already assigned, skipping.")
+        return
+
+    print("Fetching leagues...")
+    leagues = client.get_leagues()
+    assigned = 0
+    errors = 0
+    for league in leagues:
+        region = league["region"]
+        code = league["code"]
+        name = league["name"]
+        try:
+            members = client.get_league_members(region, code)
+        except Exception as e:
+            print(f"    league fetch error ({region}/{code}): {e}")
+            errors += 1
+            continue
+        with transaction() as conn:
+            for team_number in members:
+                update_team_league(conn, team_number, code, name)
+                assigned += 1
+
+    print(f"  {assigned} team-league assignments ({len(leagues)} leagues, {errors} errors).")
 
 
 def ingest_event_matches(client: FTCApiClient, event_code: str):
@@ -200,6 +234,7 @@ def run(event_filter: str | None = None, full: bool = False):
     client = FTCApiClient()
 
     ingest_teams(client, force=full)
+    ingest_leagues(client, force=full)
     raw_events = ingest_events(client)
 
     if event_filter:

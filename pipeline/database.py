@@ -36,7 +36,9 @@ def init_db(path: str = DB_PATH):
                 state_prov      TEXT,
                 country         TEXT,
                 rookie_year     INTEGER,
-                home_region     TEXT
+                home_region     TEXT,
+                league_code     TEXT,
+                league_name     TEXT
             );
 
             CREATE TABLE IF NOT EXISTS events (
@@ -137,10 +139,11 @@ def init_db(path: str = DB_PATH):
             CREATE INDEX IF NOT EXISTS idx_epa_event     ON team_epa_history(event_code);
         """)
         # Migrate existing databases
-        try:
-            conn.execute("ALTER TABLE teams ADD COLUMN home_region TEXT")
-        except Exception:
-            pass  # column already exists
+        for col in ("home_region TEXT", "league_code TEXT", "league_name TEXT"):
+            try:
+                conn.execute(f"ALTER TABLE teams ADD COLUMN {col}")
+            except Exception:
+                pass  # column already exists
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -154,6 +157,13 @@ def upsert_team(conn: sqlite3.Connection, t: dict):
             state_prov=excluded.state_prov, country=excluded.country,
             rookie_year=excluded.rookie_year, home_region=excluded.home_region
     """, t)
+
+
+def update_team_league(conn: sqlite3.Connection, team_number: int, league_code: str, league_name: str):
+    conn.execute(
+        "UPDATE teams SET league_code=?, league_name=? WHERE team_number=?",
+        (league_code, league_name, team_number),
+    )
 
 
 def upsert_event(conn: sqlite3.Connection, e: dict):

@@ -56,6 +56,14 @@ class FTCApiClient:
         data = self._get(f"{SEASON}/rankings/{event_code}")
         return data.get("Rankings", [])
 
+    def get_leagues(self) -> list[dict]:
+        data = self._get(f"{SEASON}/leagues")
+        return data.get("leagues", [])
+
+    def get_league_members(self, region: str, code: str) -> list[int]:
+        data = self._get(f"{SEASON}/leagues/members/{region}/{code}")
+        return data.get("members", [])
+
 
 # ── normalizers ───────────────────────────────────────────────────────────────
 

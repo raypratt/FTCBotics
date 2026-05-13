@@ -65,6 +65,7 @@ export default function Home() {
   const [filterCountry, setFilterCountry] = useState("");
   const [filterState, setFilterState] = useState("");
   const [filterRegion, setFilterRegion] = useState("");
+  const [filterLeague, setFilterLeague] = useState("");
 
   useEffect(() => {
     getTeams().then(setTeams).catch(console.error);
@@ -88,10 +89,25 @@ export default function Home() {
     [teams]
   );
 
+  const leagues = useMemo(() => {
+    const pool = filterRegion
+      ? teams.filter((t) => t.home_region === filterRegion)
+      : filterCountry
+      ? teams.filter((t) => t.country === filterCountry)
+      : teams;
+    return [...new Set(pool.map((t) => t.league_name).filter(Boolean))].sort() as string[];
+  }, [teams, filterRegion, filterCountry]);
+
   function handleCountryChange(v: string) {
     setFilterCountry(v);
     setFilterState("");
     setFilterRegion("");
+    setFilterLeague("");
+  }
+
+  function handleRegionChange(v: string) {
+    setFilterRegion(v);
+    setFilterLeague("");
   }
 
   // ── search dropdown ────────────────────────────────────────────────────────
@@ -190,7 +206,8 @@ export default function Home() {
           t.state_prov?.toLowerCase().includes(q)) &&
         (!filterCountry || t.country === filterCountry) &&
         (!filterState || t.state_prov === filterState) &&
-        (!filterRegion || t.home_region === filterRegion)
+        (!filterRegion || t.home_region === filterRegion) &&
+        (!filterLeague || t.league_name === filterLeague)
     );
   }, [teams, search, filterCountry, filterState]);
 
@@ -233,7 +250,7 @@ export default function Home() {
   const teamResults = results.filter((r) => r.kind === "team");
   const eventResults = results.filter((r) => r.kind === "event");
 
-  const activeFilters = [filterCountry, filterState, filterRegion].filter(Boolean).length;
+  const activeFilters = [filterCountry, filterState, filterRegion, filterLeague].filter(Boolean).length;
 
   return (
     <div className="space-y-6">
@@ -348,13 +365,19 @@ export default function Home() {
         />
         <FilterSelect
           value={filterRegion}
-          onChange={setFilterRegion}
+          onChange={handleRegionChange}
           options={regions}
           placeholder="All Regions"
         />
+        <FilterSelect
+          value={filterLeague}
+          onChange={setFilterLeague}
+          options={leagues}
+          placeholder="All Leagues"
+        />
         {activeFilters > 0 && (
           <button
-            onClick={() => { setFilterCountry(""); setFilterState(""); setFilterRegion(""); }}
+            onClick={() => { setFilterCountry(""); setFilterState(""); setFilterRegion(""); setFilterLeague(""); }}
             className="text-xs text-blue-400 hover:underline ml-1"
           >
             Clear filters

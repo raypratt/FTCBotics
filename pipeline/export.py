@@ -43,6 +43,8 @@ def export_all():
             t.state_prov,
             t.country,
             t.home_region,
+            t.league_code,
+            t.league_name,
             ts.total_epa,
             ts.auto_epa,
             ts.teleop_epa,

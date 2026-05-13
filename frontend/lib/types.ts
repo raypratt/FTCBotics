@@ -5,6 +5,8 @@ export interface TeamSummary {
   state_prov: string;
   country: string;
   home_region: string | null;
+  league_code: string | null;
+  league_name: string | null;
   total_epa: number;
   auto_epa: number;
   teleop_epa: number;
