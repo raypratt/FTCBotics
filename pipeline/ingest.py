@@ -51,9 +51,12 @@ def ingest_teams(client: FTCApiClient, force: bool = False):
     """Fetch teams at most once per day unless forced."""
     conn = get_conn()
     count = conn.execute("SELECT COUNT(*) as n FROM teams").fetchone()["n"]
+    null_region = conn.execute(
+        "SELECT COUNT(*) as n FROM teams WHERE home_region IS NULL"
+    ).fetchone()["n"]
     conn.close()
 
-    if count > 0 and not force:
+    if count > 0 and null_region == 0 and not force:
         print(f"Teams: {count} cached, skipping fetch.")
         return
 
