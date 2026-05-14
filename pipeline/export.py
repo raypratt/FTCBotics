@@ -97,6 +97,9 @@ def export_all():
     _write(f"{base}/teams.json", teams_list)
     print(f"  Exported {len(teams_list)} teams.")
 
+    # EPA lookup for predicted scores (season-end values)
+    epa_lookup = {d["team_number"]: d["total_epa"] for d in teams_list}
+
     # ── per-team detail ───────────────────────────────────────────────────────
     for team_row in teams_list:
         tn = team_row["team_number"]
@@ -114,8 +117,8 @@ def export_all():
             ORDER BY m.actual_start ASC, m.id ASC
         """, (tn,)).fetchall()
 
-        # Events this team participated in
-        events = conn.execute("""
+        # Events with rich detail
+        event_rows = conn.execute("""
             SELECT DISTINCT e.event_code, e.name, e.start_date, e.end_date,
                             e.city, e.state_prov, e.type
             FROM team_epa_history h
@@ -123,6 +126,89 @@ def export_all():
             WHERE h.team_number = ?
             ORDER BY e.start_date ASC
         """, (tn,)).fetchall()
+
+        events_out = []
+        for ev in event_rows:
+            ec = ev["event_code"]
+
+            # Last EPA snapshot for this event
+            epa_snap = conn.execute("""
+                SELECT h.total_epa, h.auto_epa, h.teleop_epa, h.endgame_epa
+                FROM team_epa_history h
+                JOIN matches m ON m.id = h.match_id
+                WHERE h.team_number = ? AND h.event_code = ?
+                ORDER BY m.actual_start DESC, m.id DESC
+                LIMIT 1
+            """, (tn, ec)).fetchone()
+
+            # All matches the team played at this event
+            match_rows = conn.execute("""
+                SELECT m.match_number, m.tournament_level, m.series,
+                       m.actual_start, m.red1, m.red2, m.blue1, m.blue2,
+                       m.red_score, m.blue_score
+                FROM matches m
+                WHERE m.event_code = ?
+                  AND (m.red1=? OR m.red2=? OR m.blue1=? OR m.blue2=?)
+                ORDER BY m.actual_start ASC, m.id ASC
+            """, (ec, tn, tn, tn, tn)).fetchall()
+
+            wins = losses = ties = 0
+            match_list = []
+            for m in match_rows:
+                r1, r2, b1, b2 = m["red1"], m["red2"], m["blue1"], m["blue2"]
+                rs, bs = m["red_score"], m["blue_score"]
+
+                if tn in (r1, r2):
+                    alliance = "RED"
+                    partner = r2 if tn == r1 else r1
+                    opp1, opp2 = b1, b2
+                    a_score, o_score = rs, bs
+                else:
+                    alliance = "BLUE"
+                    partner = b2 if tn == b1 else b1
+                    opp1, opp2 = r1, r2
+                    a_score, o_score = bs, rs
+
+                if a_score is not None and o_score is not None:
+                    if a_score > o_score:
+                        result = "W"
+                        if m["tournament_level"] == "QUALIFICATION":
+                            wins += 1
+                    elif a_score < o_score:
+                        result = "L"
+                        if m["tournament_level"] == "QUALIFICATION":
+                            losses += 1
+                    else:
+                        result = "T"
+                        if m["tournament_level"] == "QUALIFICATION":
+                            ties += 1
+                else:
+                    result = None
+
+                pred_a = round(epa_lookup.get(tn, 0) + epa_lookup.get(partner or 0, 0), 1)
+                pred_o = round(epa_lookup.get(opp1 or 0, 0) + epa_lookup.get(opp2 or 0, 0), 1)
+
+                match_list.append({
+                    "match_number": m["match_number"],
+                    "tournament_level": m["tournament_level"],
+                    "series": m["series"],
+                    "alliance": alliance,
+                    "partner": partner,
+                    "opp1": opp1,
+                    "opp2": opp2,
+                    "alliance_score": a_score,
+                    "opp_score": o_score,
+                    "predicted_alliance": pred_a,
+                    "predicted_opp": pred_o,
+                    "result": result,
+                })
+
+            events_out.append({
+                **dict(ev),
+                "epa_end": dict(epa_snap) if epa_snap else None,
+                "record": {"wins": wins, "losses": losses, "ties": ties},
+                "matches": match_list,
+            })
 
         team_info = conn.execute(
             "SELECT * FROM teams WHERE team_number=?", (tn,)
@@ -132,7 +218,7 @@ def export_all():
             **team_row,
             "team_info": dict(team_info) if team_info else {},
             "epa_history": [dict(r) for r in history],
-            "events": [dict(r) for r in events],
+            "events": events_out,
         }
         _write(f"{base}/team/{tn}.json", payload)
 

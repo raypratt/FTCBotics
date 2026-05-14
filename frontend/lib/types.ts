@@ -42,6 +42,39 @@ export interface EPAHistoryPoint {
   actual_start: string | null;
 }
 
+export interface EventMatch {
+  match_number: number;
+  tournament_level: string;
+  series: number;
+  alliance: "RED" | "BLUE";
+  partner: number | null;
+  opp1: number | null;
+  opp2: number | null;
+  alliance_score: number | null;
+  opp_score: number | null;
+  predicted_alliance: number | null;
+  predicted_opp: number | null;
+  result: "W" | "L" | "T" | null;
+}
+
+export interface TeamEventResult {
+  event_code: string;
+  name: string;
+  type: string;
+  start_date: string;
+  end_date: string;
+  city: string;
+  state_prov: string;
+  epa_end: {
+    total_epa: number;
+    auto_epa: number;
+    teleop_epa: number;
+    endgame_epa: number;
+  } | null;
+  record: { wins: number; losses: number; ties: number };
+  matches: EventMatch[];
+}
+
 export interface TeamDetail extends TeamSummary {
   team_info: {
     team_number: number;
@@ -52,7 +85,7 @@ export interface TeamDetail extends TeamSummary {
     rookie_year: number | null;
   };
   epa_history: EPAHistoryPoint[];
-  events: EventSummary[];
+  events: TeamEventResult[];
 }
 
 export interface EventSummary {

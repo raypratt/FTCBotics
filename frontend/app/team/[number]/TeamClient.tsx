@@ -1,12 +1,153 @@
 "use client";
 
 import Link from "next/link";
-import type { TeamDetail } from "@/lib/types";
+import type { TeamDetail, TeamEventResult, EventMatch } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table";
+
+function matchLabel(m: EventMatch) {
+  if (m.tournament_level === "QUALIFICATION") return `Q${m.match_number}`;
+  return `E${m.match_number}`;
+}
+
+function TeamLink({ num }: { num: number | null }) {
+  if (!num) return <span className="text-muted-foreground">—</span>;
+  return (
+    <Link href={`/team/${num}`} className="text-blue-400 hover:underline font-mono">
+      {num}
+    </Link>
+  );
+}
+
+function EventCard({ ev }: { ev: TeamEventResult }) {
+  const rec = ev.record;
+  const epa = ev.epa_end;
+
+  return (
+    <Card>
+      <CardHeader className="pb-2 pt-4 px-4">
+        <div className="flex items-start justify-between gap-2 flex-wrap">
+          <div>
+            <Link
+              href={`/event/${ev.event_code}`}
+              className="font-semibold text-sm hover:underline"
+            >
+              {ev.name}
+            </Link>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {[ev.city, ev.state_prov].filter(Boolean).join(", ")}
+              {" · "}
+              {ev.start_date?.slice(0, 10)}
+            </p>
+          </div>
+          <Badge variant="secondary" className="shrink-0">{ev.type}</Badge>
+        </div>
+      </CardHeader>
+
+      <CardContent className="px-4 pb-4 space-y-4">
+        {/* Stats row */}
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <div>
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Record</p>
+            <p className="font-mono font-bold text-sm">{rec.wins}-{rec.losses}-{rec.ties}</p>
+          </div>
+          {epa && (
+            <>
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">EPA</p>
+                <p className="font-mono font-bold text-sm">{epa.total_epa.toFixed(1)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground text-green-400">Auto</p>
+                <p className="font-mono font-bold text-sm text-green-400">{epa.auto_epa.toFixed(1)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground text-blue-400">Teleop</p>
+                <p className="font-mono font-bold text-sm text-blue-400">{epa.teleop_epa.toFixed(1)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground text-purple-400">Endgame</p>
+                <p className="font-mono font-bold text-sm text-purple-400">{epa.endgame_epa.toFixed(1)}</p>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Match table */}
+        {ev.matches.length > 0 && (
+          <div className="rounded-md border border-border overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="text-xs text-muted-foreground">
+                  <TableHead className="w-12">Match</TableHead>
+                  <TableHead>Alliance</TableHead>
+                  <TableHead>Partner</TableHead>
+                  <TableHead>Opponents</TableHead>
+                  <TableHead className="text-right">Score</TableHead>
+                  <TableHead className="text-right hidden sm:table-cell">Predicted</TableHead>
+                  <TableHead className="text-center w-12">Result</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {ev.matches.map((m, i) => {
+                  const isRed = m.alliance === "RED";
+                  const allianceColor = isRed ? "text-red-400" : "text-blue-400";
+                  const resultColor =
+                    m.result === "W" ? "text-green-400" :
+                    m.result === "L" ? "text-red-400" :
+                    "text-muted-foreground";
+
+                  return (
+                    <TableRow key={i} className="text-sm">
+                      <TableCell className="font-mono text-muted-foreground">
+                        {matchLabel(m)}
+                      </TableCell>
+                      <TableCell>
+                        <span className={`font-semibold text-xs ${allianceColor}`}>
+                          {m.alliance}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <TeamLink num={m.partner} />
+                      </TableCell>
+                      <TableCell>
+                        <span className="flex gap-2">
+                          <TeamLink num={m.opp1} />
+                          <TeamLink num={m.opp2} />
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right font-mono">
+                        {m.alliance_score ?? "—"}
+                        <span className="text-muted-foreground"> – </span>
+                        {m.opp_score ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-muted-foreground hidden sm:table-cell">
+                        {m.predicted_alliance?.toFixed(0) ?? "—"}
+                        <span> – </span>
+                        {m.predicted_opp?.toFixed(0) ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <span className={`font-bold text-xs ${resultColor}`}>
+                          {m.result ?? "—"}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 const EPA_LINES = [
   { key: "total_epa" as const, label: "Total EPA", color: "#60a5fa" },
@@ -152,25 +293,11 @@ export function TeamClient({ team }: { team: TeamDetail }) {
       )}
 
       {team.events?.length > 0 && (
-        <div>
-          <h2 className="text-lg font-semibold mb-3">Events</h2>
-          <div className="space-y-2">
-            {team.events.map((ev) => (
-              <Link
-                key={ev.event_code}
-                href={`/event/${ev.event_code}`}
-                className="flex items-center justify-between p-3 rounded-md border border-border hover:bg-muted/50 transition-colors"
-              >
-                <div>
-                  <p className="font-medium text-sm">{ev.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {ev.city && `${ev.city}, `}{ev.state_prov} · {ev.start_date?.slice(0, 10)}
-                  </p>
-                </div>
-                <Badge variant="secondary">{ev.type}</Badge>
-              </Link>
-            ))}
-          </div>
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold">Events</h2>
+          {team.events.map((ev) => (
+            <EventCard key={ev.event_code} ev={ev} />
+          ))}
         </div>
       )}
     </div>
