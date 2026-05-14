@@ -49,10 +49,10 @@ export function TeamClient({ team }: { team: TeamDetail }) {
 
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: "World Rank", rank: team.rank, sub: null },
-          { label: "Country Rank", rank: team.country_rank, sub: team.country },
-          { label: "State / Province Rank", rank: team.state_rank, sub: team.state_prov },
-        ].map(({ label, rank, sub }) => (
+          { label: "World Rank", rank: team.rank, total: team.world_total, sub: null },
+          { label: "Country Rank", rank: team.country_rank, total: team.country_total, sub: team.country },
+          { label: "State / Province Rank", rank: team.state_rank, total: team.state_total, sub: team.state_prov },
+        ].map(({ label, rank, total, sub }) => (
           <Card key={label}>
             <CardHeader className="pb-1 pt-4 px-4">
               <CardTitle className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
@@ -61,7 +61,9 @@ export function TeamClient({ team }: { team: TeamDetail }) {
             </CardHeader>
             <CardContent className="px-4 pb-4">
               <p className="text-2xl font-bold font-mono">#{rank ?? "—"}</p>
-              {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+              <p className="text-xs text-muted-foreground">
+                of {total?.toLocaleString() ?? "—"}{sub ? ` · ${sub}` : ""}
+              </p>
             </CardContent>
           </Card>
         ))}

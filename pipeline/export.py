@@ -68,7 +68,7 @@ def export_all():
         d["rank"] = rank
         teams_list.append(d)
 
-    # Compute country and state ranks (teams_list is already sorted by EPA desc)
+    # Compute country and state ranks + totals (teams_list already sorted by EPA desc)
     country_rank: dict[int, int] = {}
     state_rank: dict[int, int] = {}
     country_counter: dict[str, int] = {}
@@ -82,10 +82,17 @@ def export_all():
         country_rank[tn] = country_counter[c]
         state_rank[tn] = state_counter[(c, s)]
 
+    # country_counter / state_counter now hold final totals for each group
+    world_total = len(teams_list)
     for d in teams_list:
         tn = d["team_number"]
+        c = d.get("country") or ""
+        s = d.get("state_prov") or ""
         d["country_rank"] = country_rank[tn]
         d["state_rank"] = state_rank[tn]
+        d["world_total"] = world_total
+        d["country_total"] = country_counter[c]
+        d["state_total"] = state_counter[(c, s)]
 
     _write(f"{base}/teams.json", teams_list)
     print(f"  Exported {len(teams_list)} teams.")

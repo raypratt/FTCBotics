@@ -10,6 +10,9 @@ export interface TeamSummary {
   rank: number;
   country_rank: number;
   state_rank: number;
+  world_total: number;
+  country_total: number;
+  state_total: number;
   total_epa: number;
   auto_epa: number;
   teleop_epa: number;
