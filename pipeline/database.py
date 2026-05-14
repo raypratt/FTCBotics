@@ -1,6 +1,7 @@
 import os
 import sqlite3
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from config import DB_PATH
 
 
@@ -50,7 +51,8 @@ def init_db(path: str = DB_PATH):
                 city            TEXT,
                 state_prov      TEXT,
                 country         TEXT,
-                season          INTEGER NOT NULL
+                season          INTEGER NOT NULL,
+                last_fetched    TEXT
             );
 
             CREATE TABLE IF NOT EXISTS matches (
@@ -139,9 +141,15 @@ def init_db(path: str = DB_PATH):
             CREATE INDEX IF NOT EXISTS idx_epa_event     ON team_epa_history(event_code);
         """)
         # Migrate existing databases
-        for col in ("home_region TEXT", "league_code TEXT", "league_name TEXT"):
+        for col_def in (
+            "teams home_region TEXT",
+            "teams league_code TEXT",
+            "teams league_name TEXT",
+            "events last_fetched TEXT",
+        ):
+            table, col = col_def.split(" ", 1)
             try:
-                conn.execute(f"ALTER TABLE teams ADD COLUMN {col}")
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {col}")
             except Exception:
                 pass  # column already exists
 
@@ -163,6 +171,13 @@ def update_team_league(conn: sqlite3.Connection, team_number: int, league_code: 
     conn.execute(
         "UPDATE teams SET league_code=?, league_name=? WHERE team_number=?",
         (league_code, league_name, team_number),
+    )
+
+
+def mark_event_fetched(conn: sqlite3.Connection, event_code: str):
+    conn.execute(
+        "UPDATE events SET last_fetched=? WHERE event_code=?",
+        (datetime.now(timezone.utc).isoformat(), event_code),
     )
 
 

@@ -14,7 +14,7 @@ from datetime import datetime, timezone, timedelta
 from database import (
     init_db, transaction, get_conn,
     upsert_team, upsert_event, upsert_match, upsert_match_score,
-    update_team_league, get_unprocessed_matches, get_match_scores,
+    update_team_league, mark_event_fetched, get_unprocessed_matches, get_match_scores,
 )
 from ftc_api import (
     FTCApiClient,
@@ -40,11 +40,11 @@ def _is_active(event: dict) -> bool:
 
 
 def _needs_refresh(event_code: str, conn) -> bool:
-    """True if this event has no matches stored yet."""
+    """True if this event has never been fetched from the API."""
     row = conn.execute(
-        "SELECT COUNT(*) as n FROM matches WHERE event_code=?", (event_code,)
+        "SELECT last_fetched FROM events WHERE event_code=?", (event_code,)
     ).fetchone()
-    return row["n"] == 0
+    return row is None or row["last_fetched"] is None
 
 
 def ingest_teams(client: FTCApiClient, force: bool = False):
@@ -82,13 +82,13 @@ def ingest_events(client: FTCApiClient) -> list[dict]:
 def ingest_leagues(client: FTCApiClient, force: bool = False):
     """Fetch all leagues and assign each team its league. Skips if already populated."""
     conn = get_conn()
-    null_count = conn.execute(
-        "SELECT COUNT(*) as n FROM teams WHERE league_code IS NULL"
+    assigned = conn.execute(
+        "SELECT COUNT(*) as n FROM teams WHERE league_code IS NOT NULL"
     ).fetchone()["n"]
     conn.close()
 
-    if null_count == 0 and not force:
-        print("Leagues: all teams already assigned, skipping.")
+    if assigned > 0 and not force:
+        print(f"Leagues: {assigned} teams already assigned, skipping.")
         return
 
     print("Fetching leagues...")
@@ -123,6 +123,7 @@ def ingest_event_matches(client: FTCApiClient, event_code: str):
             if norm is None:
                 continue
             upsert_match(conn, norm)
+        mark_event_fetched(conn, event_code)
 
     for level in ("qual", "playoff"):
         try:
