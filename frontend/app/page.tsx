@@ -357,12 +357,14 @@ export default function Home() {
           options={countries}
           placeholder="All Countries"
         />
-        <FilterSelect
-          value={filterState}
-          onChange={setFilterState}
-          options={states}
-          placeholder="All States / Provinces"
-        />
+        {filterCountry && (
+          <FilterSelect
+            value={filterState}
+            onChange={setFilterState}
+            options={states}
+            placeholder="All States / Provinces"
+          />
+        )}
         <FilterSelect
           value={filterRegion}
           onChange={handleRegionChange}
