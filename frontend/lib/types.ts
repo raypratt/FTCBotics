@@ -7,6 +7,9 @@ export interface TeamSummary {
   home_region: string | null;
   league_code: string | null;
   league_name: string | null;
+  rank: number;
+  country_rank: number;
+  state_rank: number;
   total_epa: number;
   auto_epa: number;
   teleop_epa: number;
@@ -19,7 +22,6 @@ export interface TeamSummary {
   losses: number;
   ties: number;
   avg_score: number;
-  rank: number;
 }
 
 export interface EPAHistoryPoint {

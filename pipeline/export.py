@@ -68,6 +68,25 @@ def export_all():
         d["rank"] = rank
         teams_list.append(d)
 
+    # Compute country and state ranks (teams_list is already sorted by EPA desc)
+    country_rank: dict[int, int] = {}
+    state_rank: dict[int, int] = {}
+    country_counter: dict[str, int] = {}
+    state_counter: dict[tuple, int] = {}
+    for d in teams_list:
+        tn = d["team_number"]
+        c = d.get("country") or ""
+        s = d.get("state_prov") or ""
+        country_counter[c] = country_counter.get(c, 0) + 1
+        state_counter[(c, s)] = state_counter.get((c, s), 0) + 1
+        country_rank[tn] = country_counter[c]
+        state_rank[tn] = state_counter[(c, s)]
+
+    for d in teams_list:
+        tn = d["team_number"]
+        d["country_rank"] = country_rank[tn]
+        d["state_rank"] = state_rank[tn]
+
     _write(f"{base}/teams.json", teams_list)
     print(f"  Exported {len(teams_list)} teams.")
 
