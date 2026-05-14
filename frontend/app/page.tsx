@@ -84,10 +84,22 @@ export default function Home() {
     return [...new Set(pool.map((t) => t.state_prov).filter(Boolean))].sort();
   }, [teams, filterCountry]);
 
-  const regions = useMemo(
-    () => [...new Set(teams.map((t) => t.home_region).filter(Boolean))].sort() as string[],
-    [teams]
-  );
+  const regions = useMemo(() => {
+    // Count distinct regions per (country, state) pair
+    const stateRegions: Record<string, Set<string>> = {};
+    for (const t of teams) {
+      if (!t.home_region) continue;
+      const key = `${t.country}|${t.state_prov}`;
+      if (!stateRegions[key]) stateRegions[key] = new Set();
+      stateRegions[key].add(t.home_region);
+    }
+    // Only keep regions that share their state with at least one other region
+    const useful = new Set<string>();
+    for (const regionSet of Object.values(stateRegions)) {
+      if (regionSet.size > 1) regionSet.forEach((r) => useful.add(r));
+    }
+    return [...useful].sort();
+  }, [teams]);
 
   const leagues = useMemo(() => {
     const pool = filterRegion
